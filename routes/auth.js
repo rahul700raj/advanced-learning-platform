@@ -1,100 +1,41 @@
+// routes/auth.js
+
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
-const User = require('../models/User');
 
-// Register User
-router.post('/register', [
-  body('name').notEmpty().withMessage('Name is required'),
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+// Dummy user database
+const users = [];
 
-  try {
-    const { name, email, password, role } = req.body;
-
-    // Check if user exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+// Register endpoint
+router.post('/register', (req, res) => {
+    const { username, password } = req.body;
+    // Simple validation
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password are required' });
     }
-
-    // Create new user
-    user = new User({ name, email, password, role: role || 'student' });
-    await user.save();
-
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET || 'your_jwt_secret',
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    // Check if user already exists
+    const existingUser = users.find(user => user.username === username);
+    if (existingUser) {
+        return res.status(409).json({ message: 'Username already exists' });
+    }
+    // Register user
+    users.push({ username, password });
+    return res.status(201).json({ message: 'User registered successfully' });
 });
 
-// Login User
-router.post('/login', [
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('password').notEmpty().withMessage('Password is required')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const { email, password } = req.body;
-
-    // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+// Login endpoint
+router.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    // Simple validation
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password are required' });
     }
-
-    // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    // Check if user exists
+    const user = users.find(user => user.username === username);
+    if (!user || user.password !== password) {
+        return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET || 'your_jwt_secret',
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    return res.status(200).json({ message: 'Login successful' });
 });
 
 module.exports = router;
